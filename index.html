@@ -1,0 +1,230 @@
+
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#174c3c">
+  <title>Drankenteller oudercomité</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 16px;
+      font-family: Arial, sans-serif;
+      background: #f2f5f3;
+      color: #17231e;
+    }
+    header {
+      background: #174c3c;
+      color: white;
+      padding: 20px;
+      border-radius: 16px;
+      margin-bottom: 16px;
+    }
+    h1 { margin: 0 0 8px; font-size: 26px; }
+    h2 { font-size: 20px; }
+    .panel {
+      background: white;
+      padding: 16px;
+      border-radius: 14px;
+      margin-bottom: 16px;
+    }
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    label { display: block; font-weight: bold; margin-bottom: 6px; }
+    select, input, button {
+      font: inherit;
+      border-radius: 10px;
+      padding: 12px;
+    }
+    select, input { width: 100%; border: 1px solid #bbc8c0; }
+    .drink {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: center;
+      border-bottom: 1px solid #e1e7e3;
+      padding: 14px 0;
+    }
+    .drink:last-child { border-bottom: 0; }
+    .drink-name { font-size: 18px; font-weight: bold; }
+    .details { color: #59665f; font-size: 14px; margin-top: 5px; }
+    .counter { display: flex; align-items: center; gap: 10px; }
+    .count { min-width: 28px; text-align: center; font-size: 22px; font-weight: bold; }
+    button { border: 0; cursor: pointer; font-weight: bold; }
+    .minus { background: #e4e9e6; min-width: 46px; min-height: 48px; }
+    .plus { background: #174c3c; color: white; min-width: 54px; min-height: 54px; font-size: 26px; }
+    .action { background: #174c3c; color: white; width: 100%; margin-top: 8px; }
+    .danger { background: #f8e4e1; color: #81291f; }
+    .total { font-size: 28px; font-weight: bold; }
+    .muted { color: #59665f; font-size: 14px; }
+    @media (max-width: 420px) {
+      body { padding: 10px; }
+      .controls { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Drankenteller</h1>
+    <div>Oudercomité · eenvoudig tellen aan de toog</div>
+  </header>
+
+  <section class="panel">
+    <h2>Wie komt drinken?</h2>
+    <label for="tarief">Tariefgroep</label>
+    <select id="tarief">
+      <option value="lid">Lid</option>
+      <option value="vrijwilliger">Vrijwilliger</option>
+    </select>
+    <p class="muted">Kies eerst de juiste tariefgroep en druk daarna op + bij de drank.</p>
+  </section>
+
+  <section class="panel">
+    <h2>Dranken</h2>
+    <div id="dranken"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Overzicht</h2>
+    <div class="muted">Totaal aantal drankjes</div>
+    <div class="total" id="totaalAantal">0</div>
+    <div class="muted" style="margin-top:12px">Berekend bedrag</div>
+    <div class="total" id="totaalBedrag">€ 0,00</div>
+    <button class="action" id="export">Exporteer overzicht naar CSV</button>
+    <button class="action danger" id="reset">Reset alle tellers</button>
+    <p class="muted">De gegevens worden op dit toestel in de browser bewaard. Exporteer regelmatig een reservekopie.</p>
+  </section>
+
+<script>
+const dranken = [
+  { id: "cola", naam: "Cola", lid: 2, vrijwilliger: 1 },
+  { id: "cola-zero", naam: "Cola Zero", lid: 2, vrijwilliger: 1 },
+  { id: "limonade", naam: "Fanta / Sprite", lid: 2, vrijwilliger: 1 },
+  { id: "water-plat", naam: "Plat water", lid: 1.5, vrijwilliger: 0.5 },
+  { id: "water-bruis", naam: "Bruiswater", lid: 1.5, vrijwilliger: 0.5 }
+];
+
+const opslagSleutel = "oudercomite-drankenteller-v1";
+let aantallen = {};
+dranken.forEach(d => aantallen[d.id] = { lid: 0, vrijwilliger: 0 });
+
+try {
+  const bewaard = JSON.parse(localStorage.getItem(opslagSleutel));
+  if (bewaard) {
+    dranken.forEach(d => {
+      if (bewaard[d.id]) {
+        aantallen[d.id].lid = Number(bewaard[d.id].lid) || 0;
+        aantallen[d.id].vrijwilliger = Number(bewaard[d.id].vrijwilliger) || 0;
+      }
+    });
+  }
+} catch (e) {}
+
+const euro = bedrag => bedrag.toLocaleString("nl-BE", {
+  style: "currency", currency: "EUR"
+});
+
+function bewaar() {
+  localStorage.setItem(opslagSleutel, JSON.stringify(aantallen));
+}
+
+function teken() {
+  const lijst = document.getElementById("dranken");
+  lijst.innerHTML = "";
+  const groep = document.getElementById("tarief").value;
+
+  dranken.forEach(d => {
+    const aantal = aantallen[d.id][groep];
+    const item = document.createElement("div");
+    item.className = "drink";
+
+    const info = document.createElement("div");
+    info.innerHTML = `<div class="drink-name">${d.naam}</div>
+      <div class="details">Tarief: ${euro(d[groep])}</div>`;
+
+    const teller = document.createElement("div");
+    teller.className = "counter";
+
+    const min = document.createElement("button");
+    min.className = "minus";
+    min.textContent = "−";
+    min.setAttribute("aria-label", "Een drankje minder");
+    min.onclick = () => wijzig(d.id, groep, -1);
+
+    const getal = document.createElement("span");
+    getal.className = "count";
+    getal.textContent = aantal;
+
+    const plus = document.createElement("button");
+    plus.className = "plus";
+    plus.textContent = "+";
+    plus.setAttribute("aria-label", "Een drankje meer");
+    plus.onclick = () => wijzig(d.id, groep, 1);
+
+    teller.append(min, getal, plus);
+    item.append(info, teller);
+    lijst.append(item);
+  });
+
+  let aantalTotaal = 0;
+  let bedragTotaal = 0;
+  dranken.forEach(d => {
+    ["lid", "vrijwilliger"].forEach(g => {
+      aantalTotaal += aantallen[d.id][g];
+      bedragTotaal += aantallen[d.id][g] * d[g];
+    });
+  });
+
+  document.getElementById("totaalAantal").textContent = aantalTotaal;
+  document.getElementById("totaalBedrag").textContent = euro(bedragTotaal);
+}
+
+function wijzig(id, groep, verschil) {
+  aantallen[id][groep] = Math.max(0, aantallen[id][groep] + verschil);
+  bewaar();
+  teken();
+}
+
+document.getElementById("tarief").addEventListener("change", teken);
+
+document.getElementById("export").addEventListener("click", () => {
+  const regels = [["Drank", "Tariefgroep", "Aantal", "Prijs per stuk", "Totaal"]];
+  dranken.forEach(d => {
+    ["lid", "vrijwilliger"].forEach(g => {
+      regels.push([d.naam, g, aantallen[d.id][g], d[g].toFixed(2),
+        (aantallen[d.id][g] * d[g]).toFixed(2)]);
+    });
+  });
+
+  const csv = "\uFEFF" + regels.map(r =>
+    r.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(";")
+  ).join("\r\n");
+
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "drankenteller-overzicht.csv";
+  link.click();
+  URL.revokeObjectURL(url);
+});
+
+document.getElementById("reset").addEventListener("click", () => {
+  if (!confirm("Ben je zeker? Alle tellers worden op nul gezet.")) return;
+  dranken.forEach(d => {
+    aantallen[d.id].lid = 0;
+    aantallen[d.id].vrijwilliger = 0;
+  });
+  bewaar();
+  teken();
+});
+
+teken();
+</script>
+</body>
+</html>
