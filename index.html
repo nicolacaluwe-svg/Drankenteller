@@ -225,6 +225,12 @@ document.getElementById("reset").addEventListener("click", () => {
 });
 
 teken();
+  if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./service-worker.js")
+      .catch(error => console.error("Offline-installatie mislukt:", error));
+  });
+}
 </script>
 </body>
 </html>
